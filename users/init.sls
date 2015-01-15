@@ -217,6 +217,29 @@ googleauth-{{ svc }}-{{ name }}:
     - mode: 600
     - require:
       - pkg: googleauth-package
+googleauth-pam-{{ svc }}-{{ name }}:
+  file.blockreplace:
+    - name: /etc/pam.d/{{ svc }}
+    {%- if svc == 'sudo' %}
+    - marker_start: "auth       required   pam_env.so readenv=1 envfile=/etc/default/locale user_readenv=0"
+    - marker_end: "@include common-auth"
+    {%- elif svc == 'sshd' %}
+    - marker_start: "# Standard Un*x authentication."
+    - marker_end: "@include common-auth"
+    {%- endif %}
+    - content: "auth       sufficient   pam_google_authenticator.so user=root secret={{ users.googleauth_dir }}/${USER}_{{ svc }} echo_verification_code"
+    - prepend_if_not_found: True
+    - backup: .bak
+{%- if svc == 'sshd' %}
+googleauth-{{ svc }}-config-{{ name }}:
+  file.replace:
+    - name: /etc/ssh/sshd_config
+    - pattern: ChallengeResponseAuthentication no
+    - repl: "ChallengeResponseAuthentication yes\nAuthenticationMethods publickey,keyboard-interactive"
+    - backup: .bak
+    - watch_in:
+      - service: openssh
+{%- endif %}
 {%- endfor %}
 {%- endif %}
 
